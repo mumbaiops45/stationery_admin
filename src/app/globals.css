@@ -3,11 +3,55 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Palette sampled from the C2 logo */
+  --brand-pink: #ef0f76;
+  --brand-magenta: #c9146a;
+  --brand-orange: #f8722c;
+  --brand-yellow: #fdb913;
+  --brand-purple: #6f3fa4;
+  --brand-indigo: #4b5cb0;
+  --brand-blue: #3f95d8;
+  --brand-teal: #3fc7b4;
+  --brand-coral: #f0705e;
+
+  --ink: #2b2350;
+  --ink-soft: #6a6390;
+  --canvas: #f7f4ff;
+  --card: #ffffff;
+  --line: #e7e2f5;
+
+  /* Chart series hues.
+   *
+   * Each chart on Reports plots a single series, so these never sit adjacent
+   * and need no categorical separation between them. What they do need is
+   * contrast against the surface they are drawn on, which the brand hues only
+   * clear on white — validated with the dataviz palette checker:
+   *   light  #6f3fa4 / #3f95d8 on #ffffff  → all checks pass
+   *   dark   #6f3fa4 on #1b1733            → 2.4:1, fails
+   * so dark mode gets its own lighter step rather than reusing the token. */
+  --chart-revenue: #6f3fa4;
+  --chart-orders: #3f95d8;
+  --chart-grid: #e7e2f5;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-magenta: var(--brand-magenta);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-purple: var(--brand-purple);
+  --color-brand-indigo: var(--brand-indigo);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-coral: var(--brand-coral);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-canvas: var(--canvas);
+  --color-card: var(--card);
+  --color-line: var(--line);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,6 +60,15 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --ink: #f2eeff;
+    --ink-soft: #b0a8d4;
+    --canvas: #120f22;
+    --card: #1b1733;
+    --line: #322b52;
+
+    --chart-revenue: #a479db;
+    --chart-orders: #6bb2e5;
+    --chart-grid: #322b52;
   }
 }
 
@@ -23,4 +76,336 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ---------------------------------------------------------------
+   Login screen — surfaces
+   --------------------------------------------------------------- */
+
+/* Left "page" of the notebook */
+.night-panel {
+  background-image: linear-gradient(
+    135deg,
+    #2a1350 0%,
+    #4a1550 42%,
+    #1d2a63 100%
+  );
+}
+
+/* Rainbow gradient shared by the wordmark, card edge and submit button */
+.brand-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--brand-pink),
+    var(--brand-orange),
+    var(--brand-yellow),
+    var(--brand-teal),
+    var(--brand-blue),
+    var(--brand-purple),
+    var(--brand-pink)
+  );
+  background-size: 300% 100%;
+  animation: gradient-pan var(--dur, 9s) ease infinite;
+}
+
+/* Rotating rainbow halo behind the logo */
+.halo-ring {
+  background: conic-gradient(
+    from 0deg,
+    var(--brand-pink),
+    var(--brand-orange),
+    var(--brand-yellow),
+    var(--brand-teal),
+    var(--brand-blue),
+    var(--brand-purple),
+    var(--brand-pink)
+  );
+}
+
+/* ---------------------------------------------------------------
+   Login screen — animations
+   --------------------------------------------------------------- */
+
+/* Staggered entrance — set `--d` inline to delay an element */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes rise-in-x {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise-x {
+  animation: rise-in-x 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* The form page swings in from the binding */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-page-in {
+  animation: page-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Logo breathes */
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1.5deg);
+  }
+}
+
+.animate-bob {
+  animation: bob 5s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow var(--dur, 12s) linear infinite;
+}
+
+/* Drifting background doodles */
+@keyframes drift {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(var(--r, 0deg));
+  }
+  50% {
+    transform: translate3d(var(--dx, 12px), var(--dy, -20px), 0)
+      rotate(calc(var(--r, 0deg) + 10deg));
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--r, 0deg));
+  }
+}
+
+.animate-drift {
+  animation: drift var(--dur, 14s) ease-in-out infinite;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Slow colour wash */
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate3d(-8%, -6%, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(10%, 4%, 0) scale(1.2);
+  }
+  66% {
+    transform: translate3d(-4%, 12%, 0) scale(0.92);
+  }
+}
+
+.animate-aurora {
+  animation: aurora var(--dur, 22s) ease-in-out infinite;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes gradient-pan {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Supplies ticker along the bottom of the brand page */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee var(--dur, 26s) linear infinite;
+}
+
+/* Typewriter caret */
+@keyframes caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-caret {
+  animation: caret 1s steps(1, end) infinite;
+}
+
+/* Ripple where the submit button is clicked */
+@keyframes ripple {
+  from {
+    transform: scale(0);
+    opacity: 0.55;
+  }
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.animate-ripple {
+  animation: ripple 0.65s ease-out forwards;
+}
+
+/* Underline that draws itself in */
+@keyframes draw {
+  from {
+    stroke-dashoffset: var(--len, 300);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-draw {
+  stroke-dasharray: var(--len, 300);
+  animation: draw 1.6s cubic-bezier(0.65, 0, 0.35, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Invalid submit */
+@keyframes shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(4px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-7px);
+  }
+  40%,
+  60% {
+    transform: translateX(7px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* Field-level error message */
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-drop-in {
+  animation: drop-in 0.25s ease-out both;
+}
+
+/* Light sweep across the submit button on hover */
+@keyframes sheen {
+  from {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+.group\/btn:hover .btn-sheen {
+  animation: sheen 0.9s ease-out;
+}
+
+/* Success checkmark */
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-pop {
+  animation: pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-rise-x,
+  .animate-page-in,
+  .animate-bob,
+  .animate-spin-slow,
+  .animate-drift,
+  .animate-aurora,
+  .animate-marquee,
+  .animate-caret,
+  .animate-ripple,
+  .animate-draw,
+  .animate-shake,
+  .animate-drop-in,
+  .animate-pop,
+  .brand-gradient,
+  .btn-sheen {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
 }
