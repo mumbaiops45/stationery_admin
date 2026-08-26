@@ -78,6 +78,13 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Edge draws its own reveal/clear buttons inside password and search inputs,
+   which sit on top of the toggle the form already renders. */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 /* ---------------------------------------------------------------
    Login screen — surfaces
    --------------------------------------------------------------- */

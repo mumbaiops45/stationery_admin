@@ -594,17 +594,12 @@ export default function LoginPage() {
 
               {/* Password */}
               <div className="animate-rise" style={{ "--d": "330ms" }}>
-                <div className="mb-1.5 flex items-baseline justify-between">
-                  <label htmlFor="password" className="text-sm font-semibold text-ink">
-                    Password
-                  </label>
-                  <a
-                    href="#"
-                    className="text-sm font-medium text-brand-purple underline-offset-4 transition-colors hover:text-brand-pink hover:underline"
-                  >
-                    Forgot?
-                  </a>
-                </div>
+                <label
+                  htmlFor="password"
+                  className="mb-1.5 block text-sm font-semibold text-ink"
+                >
+                  Password
+                </label>
                 <div
                   className={`${fieldShell} ${
                     errors.password
@@ -800,20 +795,6 @@ export default function LoginPage() {
               </div>
             </form>
           </div>
-        </div>
-
-        {/* footer */}
-        <div
-          className="animate-rise relative flex items-center justify-between gap-4 border-t border-line px-6 py-4 text-xs text-ink-soft sm:px-10"
-          style={{ "--d": "600ms" }}
-        >
-          <span>ChoiceKraft — admin console</span>
-          <a
-            href="#"
-            className="font-medium text-ink-soft underline-offset-4 transition-colors hover:text-brand-purple hover:underline"
-          >
-            Need help?
-          </a>
         </div>
       </section>
     </div>
