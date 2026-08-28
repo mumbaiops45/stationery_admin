@@ -145,8 +145,29 @@ export function FormSection({ title, description, children, columns = 1 }) {
   );
 }
 
+/**
+ * A focused `<input type="number">` steps its own value on a wheel scroll, so
+ * scrolling the page with the pointer over the field silently edits it — a
+ * typed 50 lands as 48 with no keystroke behind it. Dropping focus first
+ * leaves the value alone and lets the scroll through to the page.
+ */
+function noWheelStep(type, onWheel) {
+  if (type !== "number") return onWheel;
+
+  return (event) => {
+    event.currentTarget.blur();
+    onWheel?.(event);
+  };
+}
+
 /** Input with a fixed leading token, e.g. a currency symbol. */
-export function InputPrefix({ prefix, className = "", size = "md", ...props }) {
+export function InputPrefix({
+  prefix,
+  className = "",
+  size = "md",
+  onWheel,
+  ...props
+}) {
   const compact = size === "sm";
 
   return (
@@ -162,6 +183,7 @@ export function InputPrefix({ prefix, className = "", size = "md", ...props }) {
       </span>
       <input
         {...props}
+        onWheel={noWheelStep(props.type, onWheel)}
         className={`w-full min-w-0 bg-transparent text-ink outline-none placeholder:text-ink-soft/50 disabled:opacity-60 ${
           compact ? "px-2.5 py-1.5 text-[13px]" : "px-3 py-2.5 text-sm"
         }`}
@@ -184,9 +206,13 @@ const CONTROL_SIZES = {
   sm: "px-2.5 py-1.5 text-[13px]",
 };
 
-export function Input({ className = "", size = "md", ...props }) {
+export function Input({ className = "", size = "md", onWheel, ...props }) {
   return (
-    <input {...props} className={`${CONTROL} ${CONTROL_SIZES[size]} ${className}`} />
+    <input
+      {...props}
+      onWheel={noWheelStep(props.type, onWheel)}
+      className={`${CONTROL} ${CONTROL_SIZES[size]} ${className}`}
+    />
   );
 }
 
