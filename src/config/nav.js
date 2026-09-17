@@ -19,6 +19,7 @@ export const NAV_SECTIONS = [
       { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
       { href: "/products", label: "Products", icon: "products" },
       { href: "/categories", label: "Categories", icon: "categories" },
+      { href: "/banners", label: "Banners", icon: "banner" },
       { href: "/inventory", label: "Inventory", icon: "inventory" },
       { href: "/orders", label: "Orders", icon: "orders" },
       { href: "/payments", label: "Payments", icon: "payments" },

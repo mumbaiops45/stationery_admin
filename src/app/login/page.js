@@ -579,7 +579,7 @@ export default function LoginPage() {
                     disabled={busy}
                     aria-invalid={Boolean(errors.email)}
                     aria-describedby={errors.email ? "email-error" : undefined}
-                    className="w-full bg-transparent py-3 pl-12 pr-4 text-[15px] text-ink outline-none placeholder:text-ink-soft/50 disabled:opacity-60"
+                    className="w-full bg-transparent py-3 pl-12 pr-4 text-base text-ink outline-none placeholder:text-ink-soft/50 disabled:opacity-60"
                   />
                 </div>
                 {errors.email ? (
@@ -621,7 +621,7 @@ export default function LoginPage() {
                     disabled={busy}
                     aria-invalid={Boolean(errors.password)}
                     aria-describedby={errors.password ? "password-error" : undefined}
-                    className="w-full bg-transparent py-3 pl-12 pr-12 text-[15px] text-ink outline-none placeholder:text-ink-soft/50 disabled:opacity-60"
+                    className="w-full bg-transparent py-3 pl-12 pr-12 text-base text-ink outline-none placeholder:text-ink-soft/50 disabled:opacity-60"
                   />
                   <button
                     type="button"

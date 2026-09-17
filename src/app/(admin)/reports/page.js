@@ -42,7 +42,7 @@ export default function ReportsPage() {
     return (
       <div className="space-y-5">
         <PageHeader title="Reports" subtitle="How the store has been trading." />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[0, 1, 2, 3].map((n) => (
             <div key={n} className="rounded-2xl border border-line bg-card p-5">
               <Skeleton className="h-4 w-24" />
@@ -151,7 +151,7 @@ export default function ReportsPage() {
         </Card>
 
         {/* Catalogue context — counts, so tiles rather than charts. */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile
             label="Customers"
             value={formatNumber(summary.totalCustomers)}

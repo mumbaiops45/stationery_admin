@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { Icon } from "@/components/icons";
 
@@ -46,8 +46,9 @@ export function Button({
  * Square icon-only button for table row actions.
  *
  * `label` is required and is not decoration: an icon alone has no accessible
- * name, so it becomes both the `aria-label` and the hover tooltip. The 32px
- * box keeps the hit target comfortable even though the glyph is 16px.
+ * name, so it becomes both the `aria-label` and the hover tooltip. The glyph
+ * is 16px; the box is 36px on touch screens and tightens to 32px from `sm`
+ * up, where a pointer makes the smaller target comfortable.
  */
 export function IconButton({
   icon,
@@ -70,7 +71,7 @@ export function IconButton({
       disabled={disabled || loading}
       aria-label={label}
       title={label}
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-purple disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent ${tones[tone]} ${className}`}
+      className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors focus-visible:outline-2 sm:h-8 sm:w-8 focus-visible:outline-offset-2 focus-visible:outline-brand-purple disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent ${tones[tone]} ${className}`}
     >
       {loading ? <Spinner className="h-4 w-4" /> : <Icon name={icon} className="h-4 w-4" />}
     </button>
@@ -176,7 +177,7 @@ export function InputPrefix({
     >
       <span
         className={`grid place-items-center border-r border-line bg-canvas font-medium text-ink-soft ${
-          compact ? "px-2 text-[13px]" : "px-3 text-sm"
+          compact ? "px-2 text-base sm:text-[13px]" : "px-3 text-base sm:text-sm"
         }`}
       >
         {prefix}
@@ -185,7 +186,9 @@ export function InputPrefix({
         {...props}
         onWheel={noWheelStep(props.type, onWheel)}
         className={`w-full min-w-0 bg-transparent text-ink outline-none placeholder:text-ink-soft/50 disabled:opacity-60 ${
-          compact ? "px-2.5 py-1.5 text-[13px]" : "px-3 py-2.5 text-sm"
+          compact
+            ? "px-2.5 py-1.5 text-base sm:text-[13px]"
+            : "px-3 py-2.5 text-base sm:text-sm"
         }`}
       />
     </span>
@@ -201,9 +204,14 @@ const CONTROL =
  * `size` is destructured off rather than spread — `<input size>` and
  * `<select size>` are real HTML attributes that expect a number.
  */
+/**
+ * Mobile Safari force-zooms the page when a focused control's font-size is
+ * under 16px, and does not zoom back out on blur. So every control is 16px
+ * on phones and drops to the dense desktop size from `sm` up.
+ */
 const CONTROL_SIZES = {
-  md: "px-3 py-2.5 text-sm",
-  sm: "px-2.5 py-1.5 text-[13px]",
+  md: "px-3 py-2.5 text-base sm:text-sm",
+  sm: "px-2.5 py-1.5 text-base sm:text-[13px]",
 };
 
 export function Input({ className = "", size = "md", onWheel, ...props }) {
@@ -291,13 +299,59 @@ export function Modal({
   children,
   footer,
 }) {
+  const panelRef = useRef(null);
+
+  /**
+   * Escape closes, Tab stays inside the dialog, and the page behind is frozen.
+   * Without the scroll lock a touch drag inside the modal chains to the page
+   * underneath, which is then left at a new scroll position once it closes.
+   */
   useEffect(() => {
     if (!open) return;
+
+    const opener = document.activeElement;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+
+    // The panel itself takes focus, so Tab starts inside rather than on the
+    // scrim, and a screen reader lands on the title.
+    panelRef.current?.focus();
+
+    const FOCUSABLE =
+      'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
     const onKey = (event) => {
-      if (event.key === "Escape") onClose?.();
+      if (event.key === "Escape") {
+        onClose?.();
+        return;
+      }
+      if (event.key !== "Tab" || !panelRef.current) return;
+
+      const items = panelRef.current.querySelectorAll(FOCUSABLE);
+      if (!items.length) return;
+
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === first || !panelRef.current.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+      // Hand focus back to whatever opened the dialog, rather than dropping a
+      // keyboard user at the top of the page.
+      if (opener instanceof HTMLElement) opener.focus();
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -311,14 +365,16 @@ export function Modal({
         className="absolute inset-0 cursor-default bg-ink/40 backdrop-blur-sm"
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`animate-page-in relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-2xl ${
+        tabIndex={-1}
+        className={`animate-page-in relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-2xl outline-none ${
           size === "lg" ? "max-w-2xl" : "max-w-lg"
         }`}
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-6 py-4">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="text-base font-semibold tracking-tight text-ink">
               {title}
@@ -344,10 +400,12 @@ export function Modal({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+          {children}
+        </div>
 
         {footer ? (
-          <footer className="flex shrink-0 justify-end gap-2 border-t border-line bg-canvas/60 px-6 py-4">
+          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-line bg-canvas/60 px-5 py-4 sm:px-6">
             {footer}
           </footer>
         ) : null}
@@ -360,9 +418,61 @@ export function Modal({
 /* Table + pagination                                                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Below `sm` a 640px-wide table can only be read by scrolling sideways, and
+ * the column that lands off-screen is always the last one — the row actions.
+ * So phones get the same columns stacked into a card per row instead.
+ *
+ * The split is derived from the column list rather than configured per page:
+ * the first column identifies the row and leads the card, any column with no
+ * header is chrome (row actions) and sits opposite it, and the rest become
+ * labelled pairs.
+ */
+function CardList({ columns, rows, rowKey }) {
+  const [primary, ...rest] = columns;
+  if (!primary) return null;
+
+  const actions = rest.filter((column) => !column.header);
+  const details = rest.filter((column) => column.header);
+
+  return (
+    <ul className="divide-y divide-line sm:hidden">
+      {rows.map((row) => (
+        <li key={rowKey(row)} className="px-4 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">{primary.render(row)}</div>
+            {actions.length ? (
+              <div className="flex shrink-0 items-center gap-1">
+                {actions.map((column) => (
+                  <span key={column.key}>{column.render(row)}</span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {details.length ? (
+            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
+              {details.map((column) => (
+                <div key={column.key} className="min-w-0">
+                  <dt className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
+                    {column.header}
+                  </dt>
+                  <dd className="mt-1 min-w-0 text-sm text-ink">
+                    {column.render(row)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function DataTable({ columns, rows, rowKey, loading, empty }) {
   return (
-    <div className="relative overflow-x-auto">
+    <div className="relative">
       {loading ? (
         <div className="absolute inset-0 z-10 grid place-items-center bg-card/60 backdrop-blur-[1px]">
           <Spinner className="h-6 w-6 text-brand-purple" />
@@ -372,41 +482,49 @@ export function DataTable({ columns, rows, rowKey, loading, empty }) {
       {rows.length === 0 && !loading ? (
         empty
       ) : (
-        <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-line">
-              {columns.map((column) => (
-                <th
-                  key={column.key}
-                  className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-soft ${
-                    column.align === "right" ? "text-right" : ""
-                  }`}
-                >
-                  {column.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={rowKey(row)}
-                className="border-b border-line/70 transition-colors last:border-0 hover:bg-canvas/60"
-              >
-                {columns.map((column) => (
-                  <td
-                    key={column.key}
-                    className={`px-4 py-3 text-ink ${
-                      column.align === "right" ? "text-right" : ""
-                    }`}
+        <>
+          <CardList columns={columns} rows={rows} rowKey={rowKey} />
+
+          {/* The sideways scroll is kept for tablets and up, where the table
+              is only a little wider than the viewport. */}
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-line">
+                  {columns.map((column) => (
+                    <th
+                      key={column.key}
+                      className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-ink-soft ${
+                        column.align === "right" ? "text-right" : ""
+                      }`}
+                    >
+                      {column.header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={rowKey(row)}
+                    className="border-b border-line/70 transition-colors last:border-0 hover:bg-canvas/60"
                   >
-                    {column.render(row)}
-                  </td>
+                    {columns.map((column) => (
+                      <td
+                        key={column.key}
+                        className={`px-4 py-3 text-ink ${
+                          column.align === "right" ? "text-right" : ""
+                        }`}
+                      >
+                        {column.render(row)}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
@@ -418,7 +536,7 @@ export function Pagination({ page, pages, total, onChange }) {
   const lastPage = Math.max(pages, 1);
 
   return (
-    <div className="flex items-center justify-between gap-4 border-t border-line px-4 py-2.5 text-sm text-ink-soft">
+    <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 text-xs text-ink-soft sm:text-sm">
       <span className="tabular-nums">
         Page {page} of {lastPage} · {total} total
       </span>

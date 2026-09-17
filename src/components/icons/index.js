@@ -103,6 +103,16 @@ export function Users(props) {
   );
 }
 
+export function Banner(props) {
+  return (
+    <Glyph {...props}>
+      <rect x="3" y="5.5" width="18" height="13" rx="1.6" />
+      <circle cx="8.3" cy="10" r="1.6" />
+      <path d="M4 16.2l4.2-4.2a1.4 1.4 0 011.9 0l3.6 3.6M13.3 14l1.6-1.6a1.4 1.4 0 011.9 0L20 15.6" />
+    </Glyph>
+  );
+}
+
 export function Reports(props) {
   return (
     <Glyph {...props}>
@@ -278,6 +288,7 @@ export const ICONS = {
   products: Products,
   categories: Categories,
   inventory: Inventory,
+  banner: Banner,
   orders: Orders,
   payments: Payments,
   users: Users,
