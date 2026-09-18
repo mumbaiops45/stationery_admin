@@ -20,15 +20,18 @@ import {
 } from "@/components/ui";
 import { formatDateTime, formatMoney, formatNumber, formatRelative } from "@/lib/format";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useMutation } from "@/hooks/useResource";
 import { useOrders } from "@/hooks/useOrders";
 import {
   ORDER_SORTS,
   ORDER_STATUSES,
   PAGE_SIZES,
   PAYMENT_STATUSES,
+  orderService,
   orderStatusMeta,
   orderTotals,
   paymentStatusMeta,
+  shiprocketStatusMeta,
 } from "@/services/order.service";
 
 const INITIAL_PARAMS = {
@@ -57,6 +60,19 @@ export default function OrdersPage() {
 
   const [query, setQuery] = useState("");
   const [viewing, setViewing] = useState(null);
+  const retry = useMutation();
+
+  async function retryShiprocket() {
+    if (!viewing) return;
+    const { ok, result } = await retry.run(() => orderService.retryShiprocket(viewing.id));
+    if (ok) {
+      const shiprocket = result?.data?.shiprocket;
+      if (shiprocket) {
+        setViewing((current) => (current ? { ...current, shiprocket } : current));
+      }
+      orders.refetch();
+    }
+  }
 
   function apply(patch = {}) {
     orders.setParams({ search: query.trim(), ...patch, page: 1 });
@@ -146,7 +162,10 @@ export default function OrdersPage() {
           icon="eye"
           tone="brand"
           label={`View order ${row.orderNumber}`}
-          onClick={() => setViewing(row)}
+          onClick={() => {
+            retry.clearError();
+            setViewing(row);
+          }}
         />
       ),
     },
@@ -478,6 +497,56 @@ export default function OrdersPage() {
                   </dd>
                 </div>
               </dl>
+            </section>
+
+            {/* Shiprocket */}
+            <section>
+              <h3 className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
+                Fulfillment (Shiprocket)
+                <Badge tone={shiprocketStatusMeta(viewing.shiprocket.status).tone}>
+                  {shiprocketStatusMeta(viewing.shiprocket.status).label}
+                </Badge>
+              </h3>
+
+              <div className="mt-2.5 space-y-2 rounded-xl border border-line bg-canvas/60 px-3.5 py-3 text-xs">
+                {viewing.shiprocket.status === "created" ? (
+                  <>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-ink-soft">Shiprocket order</dt>
+                      <dd className="break-all font-mono text-ink">
+                        {viewing.shiprocket.shiprocketOrderId || "—"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-ink-soft">AWB / courier</dt>
+                      <dd className="break-all font-mono text-ink">
+                        {viewing.shiprocket.awbCode || "Not yet assigned"}
+                        {viewing.shiprocket.courierName
+                          ? ` · ${viewing.shiprocket.courierName}`
+                          : ""}
+                      </dd>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-ink-soft">
+                      {viewing.shiprocket.status === "failed"
+                        ? viewing.shiprocket.error || "The push to Shiprocket failed."
+                        : "This order has not been pushed to Shiprocket yet."}
+                    </p>
+                    <Alert>{retry.error}</Alert>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      loading={retry.pending}
+                      onClick={retryShiprocket}
+                    >
+                      Retry Shiprocket push
+                    </Button>
+                  </>
+                )}
+              </div>
             </section>
           </div>
         ) : null}

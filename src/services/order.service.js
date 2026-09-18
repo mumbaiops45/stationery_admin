@@ -1,4 +1,4 @@
-import { ApiError, createEndpointResolver } from "@/lib/api";
+import { api, ApiError, createEndpointResolver } from "@/lib/api";
 import { formatMoney, toNumber } from "@/lib/format";
 
 /**
@@ -37,6 +37,12 @@ export const PAYMENT_STATUSES = [
   { value: "refunded", label: "Refunded", tone: "warning" },
 ];
 
+export const SHIPROCKET_STATUSES = [
+  { value: "created", label: "Pushed to Shiprocket", tone: "success" },
+  { value: "failed", label: "Shiprocket push failed", tone: "danger" },
+  { value: "not_pushed", label: "Not yet pushed", tone: "neutral" },
+];
+
 export const ORDER_SORTS = [
   { value: "newest", label: "Newest first" },
   { value: "oldest", label: "Oldest first" },
@@ -59,6 +65,8 @@ function metaFrom(list, value) {
 
 export const orderStatusMeta = (status) => metaFrom(ORDER_STATUSES, status);
 export const paymentStatusMeta = (status) => metaFrom(PAYMENT_STATUSES, status);
+export const shiprocketStatusMeta = (status) =>
+  metaFrom(SHIPROCKET_STATUSES, status || "not_pushed");
 
 /* ------------------------------------------------------------------ */
 /* Normalisation                                                       */
@@ -125,6 +133,16 @@ function normalizeOrder(order = {}) {
       razorpayPaymentId: order.razorpayPaymentId || "",
     },
 
+    shiprocket: {
+      status: order.shiprocket?.status || "not_pushed",
+      shiprocketOrderId: order.shiprocket?.shiprocketOrderId || "",
+      shipmentId: order.shiprocket?.shipmentId || "",
+      awbCode: order.shiprocket?.awbCode || "",
+      courierName: order.shiprocket?.courierName || "",
+      error: order.shiprocket?.error || "",
+      pushedAt: order.shiprocket?.pushedAt || null,
+    },
+
     createdAt: order.createdAt || null,
     cancelledAt: order.cancelledAt || null,
     deliveredAt: order.deliveredAt || null,
@@ -148,6 +166,14 @@ function assertAdminEnvelope(payload) {
 }
 
 export const orderService = {
+  /**
+   * POST <mount>/:id/retry-shiprocket — re-attempts pushing an order that
+   * was never pushed, or whose push failed (e.g. a bad pincode the admin
+   * has since fixed on the customer's address). Resolves against the same
+   * mount `list` already found, so this only works after a list call.
+   */
+  retryShiprocket: (id) => api.post(`${endpoint.path()}/${id}/retry-shiprocket`),
+
   /** GET <mount>/ — search (order number), orderStatus, paymentStatus, sort. */
   list: async (params = {}, options) => {
     const payload = assertAdminEnvelope(

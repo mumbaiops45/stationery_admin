@@ -34,7 +34,10 @@ export const NAV_SECTIONS = [
   {
     id: "system",
     title: "System",
-    items: [{ href: "/profile", label: "Profile", icon: "profile" }],
+    items: [
+      { href: "/settings", label: "Settings", icon: "settings" },
+      { href: "/profile", label: "Profile", icon: "profile" },
+    ],
   },
 ];
 
