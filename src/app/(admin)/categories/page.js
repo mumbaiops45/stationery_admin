@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/icons";
 import {
   Alert,
   Badge,
@@ -21,10 +22,14 @@ import {
   Textarea,
 } from "@/components/ui";
 import ImageUpload from "@/components/ImageUpload";
+import { formatDateTime } from "@/lib/format";
+import { exportRowsToExcel, todayStamp } from "@/lib/excel";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { useCategories } from "@/hooks/useCategories";
 import {
   CATEGORY_SORTS,
   PAGE_SIZES,
+  categoryService,
   slugify,
 } from "@/services/category.service";
 
@@ -51,6 +56,8 @@ export default function CategoriesPage() {
   const [form, setForm] = useState(BLANK);
   const [formError, setFormError] = useState("");
   const [confirming, setConfirming] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   function apply(patch = {}) {
     categories.setParams({ search: query.trim(), ...patch, page: 1 });
@@ -59,6 +66,36 @@ export default function CategoriesPage() {
   function resetFilters() {
     setQuery("");
     categories.setParams(INITIAL_PARAMS);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      const rows = await fetchAllPages(categoryService.list, categories.params);
+      await exportRowsToExcel({
+        fileName: `categories-${todayStamp()}.xlsx`,
+        sheetName: "Categories",
+        columns: [
+          { header: "Name", key: "name", width: 28 },
+          { header: "Slug", key: "slug", width: 28 },
+          { header: "Description", key: "description", width: 40 },
+          { header: "Status", key: "status", width: 12 },
+          { header: "Created", key: "createdAt", width: 20 },
+        ],
+        rows: rows.map((category) => ({
+          name: category.name || "",
+          slug: category.slug || "",
+          description: category.description || "",
+          status: category.isActive === false ? "Inactive" : "Active",
+          createdAt: category.createdAt ? formatDateTime(category.createdAt) : "",
+        })),
+      });
+    } catch (err) {
+      setExportError(err.message || "Could not build the Excel file.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   const activeFilters =
@@ -213,8 +250,18 @@ export default function CategoriesPage() {
       />
 
       <Alert>{categories.error}</Alert>
+      <Alert>{exportError}</Alert>
 
-      <Card title="All categories" description={`${categories.total} total`}>
+      <Card
+        title="All categories"
+        description={`${categories.total} total`}
+        actions={
+          <Button size="sm" variant="secondary" loading={exporting} onClick={handleExport}>
+            <Icon name="download" className="h-4 w-4" />
+            Download Excel
+          </Button>
+        }
+      >
         {/* Filter toolbar */}
         <form
           onSubmit={(event) => {

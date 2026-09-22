@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/icons";
 import {
   Alert,
   Badge,
@@ -23,10 +24,12 @@ import {
 } from "@/components/ui";
 import ImageUpload from "@/components/ImageUpload";
 import { VariantsModal } from "@/components/VariantsModal";
-import { formatMoney } from "@/lib/format";
+import { formatDateTime, formatMoney, toNumber } from "@/lib/format";
+import { exportRowsToExcel, todayStamp } from "@/lib/excel";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { useCategoryOptions } from "@/hooks/useCategories";
 import { useProducts } from "@/hooks/useProducts";
-import { PAGE_SIZES, PRODUCT_SORTS } from "@/services/product.service";
+import { PAGE_SIZES, PRODUCT_SORTS, productService } from "@/services/product.service";
 
 /**
  * Query defaults. Every filter key is present from the start so `setParams`
@@ -88,6 +91,8 @@ export default function ProductsPage() {
   const [formError, setFormError] = useState("");
   const [confirming, setConfirming] = useState(null);
   const [managing, setManaging] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   function apply(patch = {}) {
     products.setParams({
@@ -102,6 +107,51 @@ export default function ProductsPage() {
   function resetFilters() {
     setDraft({ search: "", minPrice: "", maxPrice: "" });
     products.setParams(INITIAL_PARAMS);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      const rows = await fetchAllPages(productService.list, products.params);
+      await exportRowsToExcel({
+        fileName: `products-${todayStamp()}.xlsx`,
+        sheetName: "Products",
+        columns: [
+          { header: "Name", key: "name", width: 32 },
+          { header: "Slug", key: "slug", width: 28 },
+          { header: "Category", key: "category", width: 20 },
+          { header: "Price (₹)", key: "price", width: 14, numFmt: "#,##0.00", align: "right" },
+          {
+            header: "Compare price (₹)",
+            key: "compareAtPrice",
+            width: 18,
+            numFmt: "#,##0.00",
+            align: "right",
+          },
+          { header: "Stock", key: "stock", width: 14, align: "right" },
+          { header: "Has variants", key: "hasVariants", width: 14 },
+          { header: "Status", key: "status", width: 12 },
+          { header: "Created", key: "createdAt", width: 20 },
+        ],
+        rows: rows.map((product) => ({
+          name: product.name || "",
+          slug: product.slug || "",
+          category: product.category?.name || product.categoryName || "",
+          price: toNumber(product.price),
+          compareAtPrice:
+            product.compareAtPrice != null ? toNumber(product.compareAtPrice) : "",
+          stock: product.hasVariants ? "Per variant" : toNumber(product.stock ?? 0),
+          hasVariants: product.hasVariants ? "Yes" : "No",
+          status: product.isActive === false ? "Inactive" : "Active",
+          createdAt: product.createdAt ? formatDateTime(product.createdAt) : "",
+        })),
+      });
+    } catch (err) {
+      setExportError(err.message || "Could not build the Excel file.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   const activeFilters =
@@ -338,16 +388,23 @@ export default function ProductsPage() {
       />
 
       <Alert>{products.error}</Alert>
+      <Alert>{exportError}</Alert>
 
       <Card
         title="All products"
         description={`${products.total} total`}
         actions={
-          activeFilters > 0 ? (
-            <Button size="sm" variant="ghost" onClick={resetFilters}>
-              Clear {activeFilters} filter{activeFilters === 1 ? "" : "s"}
+          <span className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" loading={exporting} onClick={handleExport}>
+              <Icon name="download" className="h-4 w-4" />
+              Download Excel
             </Button>
-          ) : null
+            {activeFilters > 0 ? (
+              <Button size="sm" variant="ghost" onClick={resetFilters}>
+                Clear {activeFilters} filter{activeFilters === 1 ? "" : "s"}
+              </Button>
+            ) : null}
+          </span>
         }
       >
         {/* Filter toolbar */}

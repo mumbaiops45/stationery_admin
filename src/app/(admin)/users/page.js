@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/icons";
 import {
   Alert,
   Badge,
@@ -20,6 +21,8 @@ import {
   StatTile,
 } from "@/components/ui";
 import { formatDateTime, formatNumber, formatRelative } from "@/lib/format";
+import { exportRowsToExcel, todayStamp } from "@/lib/excel";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useUsers } from "@/hooks/useUsers";
@@ -30,6 +33,7 @@ import {
   STATUS_FILTERS,
   USER_SORTS,
   roleMeta,
+  userService,
 } from "@/services/user.service";
 
 const INITIAL_PARAMS = {
@@ -58,6 +62,8 @@ export default function UsersPage() {
   const [query, setQuery] = useState("");
   const [viewing, setViewing] = useState(null);
   const [roleDraft, setRoleDraft] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   const myId = me?._id || me?.id || null;
   // Read off nullable state here, not inside saveRole: the React Compiler
@@ -73,6 +79,38 @@ export default function UsersPage() {
   function resetFilters() {
     setQuery("");
     users.setParams(INITIAL_PARAMS);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      const rows = await fetchAllPages(userService.list, users.params);
+      await exportRowsToExcel({
+        fileName: `users-${todayStamp()}.xlsx`,
+        sheetName: "Users",
+        columns: [
+          { header: "Name", key: "name", width: 24 },
+          { header: "Email", key: "email", width: 30 },
+          { header: "Phone", key: "phone", width: 16 },
+          { header: "Role", key: "role", width: 12 },
+          { header: "Status", key: "status", width: 12 },
+          { header: "Joined", key: "createdAt", width: 20 },
+        ],
+        rows: rows.map((user) => ({
+          name: user.name || "",
+          email: user.email || "",
+          phone: user.phone || "",
+          role: roleMeta(user.role).label,
+          status: user.isActive ? "Active" : "Inactive",
+          createdAt: user.createdAt ? formatDateTime(user.createdAt) : "",
+        })),
+      });
+    } catch (err) {
+      setExportError(err.message || "Could not build the Excel file.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   function openUser(row) {
@@ -135,16 +173,6 @@ export default function UsersPage() {
       ),
     },
     {
-      key: "verified",
-      header: "Email",
-      render: (row) =>
-        row.isVerified ? (
-          <Badge tone="success">Verified</Badge>
-        ) : (
-          <Badge tone="warning">Unverified</Badge>
-        ),
-    },
-    {
       key: "joined",
       header: "Joined",
       render: (row) => (
@@ -176,6 +204,7 @@ export default function UsersPage() {
       />
 
       <Alert>{users.error}</Alert>
+      <Alert>{exportError}</Alert>
 
       {/* Store-wide totals */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -221,7 +250,16 @@ export default function UsersPage() {
         ) : null}
       </div>
 
-      <Card title="All users" description={`${users.total} total`}>
+      <Card
+        title="All users"
+        description={`${users.total} total`}
+        actions={
+          <Button size="sm" variant="secondary" loading={exporting} onClick={handleExport}>
+            <Icon name="download" className="h-4 w-4" />
+            Download Excel
+          </Button>
+        }
+      >
         {/* Filter toolbar */}
         <form
           onSubmit={(event) => {

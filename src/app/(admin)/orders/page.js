@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/icons";
 import {
   Alert,
   Badge,
@@ -19,6 +20,8 @@ import {
   StatTile,
 } from "@/components/ui";
 import { formatDateTime, formatMoney, formatNumber, formatRelative } from "@/lib/format";
+import { exportRowsToExcel, todayStamp } from "@/lib/excel";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useMutation } from "@/hooks/useResource";
 import { useOrders } from "@/hooks/useOrders";
@@ -61,6 +64,8 @@ export default function OrdersPage() {
   const [query, setQuery] = useState("");
   const [viewing, setViewing] = useState(null);
   const retry = useMutation();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   async function retryShiprocket() {
     if (!viewing) return;
@@ -81,6 +86,62 @@ export default function OrdersPage() {
   function resetFilters() {
     setQuery("");
     orders.setParams(INITIAL_PARAMS);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      const rows = await fetchAllPages(orderService.list, orders.params);
+      await exportRowsToExcel({
+        fileName: `orders-${todayStamp()}.xlsx`,
+        sheetName: "Orders",
+        columns: [
+          { header: "Order number", key: "orderNumber", width: 18 },
+          { header: "Customer", key: "customerName", width: 22 },
+          { header: "Email", key: "customerEmail", width: 26 },
+          { header: "Phone", key: "customerPhone", width: 16 },
+          { header: "Items", key: "itemCount", width: 10, align: "right" },
+          { header: "Subtotal (₹)", key: "subtotal", width: 14, numFmt: "#,##0", align: "right" },
+          { header: "Shipping (₹)", key: "shipping", width: 14, numFmt: "#,##0", align: "right" },
+          { header: "Total (₹)", key: "total", width: 14, numFmt: "#,##0", align: "right" },
+          { header: "Order status", key: "orderStatus", width: 16 },
+          { header: "Payment status", key: "paymentStatus", width: 16 },
+          { header: "Razorpay order", key: "razorpayOrderId", width: 26 },
+          { header: "Razorpay payment", key: "razorpayPaymentId", width: 26 },
+          { header: "Shiprocket status", key: "shiprocketStatus", width: 20 },
+          { header: "AWB code", key: "awbCode", width: 18 },
+          { header: "Courier", key: "courierName", width: 18 },
+          { header: "Created", key: "createdAt", width: 20 },
+          { header: "Delivered", key: "deliveredAt", width: 20 },
+          { header: "Cancelled", key: "cancelledAt", width: 20 },
+        ],
+        rows: rows.map((order) => ({
+          orderNumber: order.orderNumber || "",
+          customerName: order.customer.name || "",
+          customerEmail: order.customer.email || "",
+          customerPhone: order.customer.phone || "",
+          itemCount: order.itemCount,
+          subtotal: order.subtotal,
+          shipping: order.shipping,
+          total: order.total,
+          orderStatus: orderStatusMeta(order.orderStatus).label,
+          paymentStatus: paymentStatusMeta(order.paymentStatus).label,
+          razorpayOrderId: order.payment.razorpayOrderId || "",
+          razorpayPaymentId: order.payment.razorpayPaymentId || "",
+          shiprocketStatus: shiprocketStatusMeta(order.shiprocket.status).label,
+          awbCode: order.shiprocket.awbCode || "",
+          courierName: order.shiprocket.courierName || "",
+          createdAt: order.createdAt ? formatDateTime(order.createdAt) : "",
+          deliveredAt: order.deliveredAt ? formatDateTime(order.deliveredAt) : "",
+          cancelledAt: order.cancelledAt ? formatDateTime(order.cancelledAt) : "",
+        })),
+      });
+    } catch (err) {
+      setExportError(err.message || "Could not build the Excel file.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   const activeFilters =
@@ -179,6 +240,7 @@ export default function OrdersPage() {
       />
 
       <Alert>{orders.error}</Alert>
+      <Alert>{exportError}</Alert>
 
       {/* Store-wide totals */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -225,7 +287,16 @@ export default function OrdersPage() {
         ) : null}
       </div>
 
-      <Card title="All orders" description={`${orders.total} total`}>
+      <Card
+        title="All orders"
+        description={`${orders.total} total`}
+        actions={
+          <Button size="sm" variant="secondary" loading={exporting} onClick={handleExport}>
+            <Icon name="download" className="h-4 w-4" />
+            Download Excel
+          </Button>
+        }
+      >
         {/* Filter toolbar */}
         <form
           onSubmit={(event) => {

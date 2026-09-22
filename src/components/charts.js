@@ -53,6 +53,66 @@ function shortDate(iso) {
   return `${Number(day)} ${months[Number(month) - 1] || ""}`.trim();
 }
 
+/**
+ * Evenly-spaced data indices to label on the x-axis, endpoints included.
+ *
+ * A 90-day or 365-day report used to get only its first and last date on the
+ * axis — anything in between (where a peak usually sits) had no date to read
+ * off without hovering pixel-for-pixel. This spreads up to `count` labels
+ * across the full span instead, so any point on the chart has a nearby tick.
+ */
+function pickTicks(length, count = 8) {
+  if (length <= 0) return [];
+  if (length <= count) return Array.from({ length }, (_, i) => i);
+
+  const step = (length - 1) / (count - 1);
+  const indices = new Set();
+  for (let i = 0; i < count; i += 1) {
+    indices.add(Math.round(i * step));
+  }
+  return Array.from(indices).sort((a, b) => a - b);
+}
+
+/** Vertical hairlines under the x-axis ticks, aligning a bar/point to its date. */
+function XGrid({ ticks, xAt, pad, innerH }) {
+  return (
+    <g>
+      {ticks.map((index) => (
+        <line
+          key={index}
+          x1={xAt(index)}
+          x2={xAt(index)}
+          y1={pad.top}
+          y2={pad.top + innerH}
+          stroke={GRID}
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </g>
+  );
+}
+
+/** Date labels at each tick, anchored so the endpoints never overflow the plot. */
+function XTicks({ ticks, xAt, y, dates }) {
+  const last = ticks[ticks.length - 1];
+  return (
+    <g>
+      {ticks.map((index) => (
+        <text
+          key={index}
+          x={xAt(index)}
+          y={y}
+          textAnchor={index === 0 ? "start" : index === last ? "end" : "middle"}
+          className="fill-ink-soft text-[10px]"
+        >
+          {shortDate(dates[index])}
+        </text>
+      ))}
+    </g>
+  );
+}
+
 /** Floating readout. Positioned in the container, not the SVG. */
 function Tooltip({ x, title, rows }) {
   return (
@@ -117,6 +177,7 @@ export function TimeAreaChart({ data, color, formatValue, valueKey = "value", la
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const max = niceMax(Math.max(...data.map((d) => d[valueKey]), 0));
+  const ticks = pickTicks(data.length);
 
   // A single point has no span to divide by — centre it.
   const xAt = (index) =>
@@ -162,6 +223,7 @@ export function TimeAreaChart({ data, color, formatValue, valueKey = "value", la
         onMouseLeave={() => setHover(null)}
       >
         <Grid max={max} pad={PAD} innerW={innerW} innerH={innerH} format={formatValue} />
+        <XGrid ticks={ticks} xAt={xAt} pad={PAD} innerH={innerH} />
 
         <path d={area} fill={color} opacity="0.1" />
         <path
@@ -212,23 +274,12 @@ export function TimeAreaChart({ data, color, formatValue, valueKey = "value", la
           </g>
         ) : null}
 
-        {/* First / last date only — enough to anchor the span. */}
-        <text
-          x={PAD.left}
+        <XTicks
+          ticks={ticks}
+          xAt={xAt}
           y={H - 6}
-          className="fill-ink-soft text-[10px]"
-          textAnchor="start"
-        >
-          {shortDate(data[0]?.date)}
-        </text>
-        <text
-          x={PAD.left + innerW}
-          y={H - 6}
-          className="fill-ink-soft text-[10px]"
-          textAnchor="end"
-        >
-          {shortDate(last?.date)}
-        </text>
+          dates={data.map((d) => d.date)}
+        />
       </svg>
     </div>
   );
@@ -248,6 +299,8 @@ export function TimeColumnChart({ data, color, formatValue, valueKey = "value", 
   const band = innerW / Math.max(data.length, 1);
   // Capped at 24px, and never wider than the band less a 2px surface gap.
   const width = Math.max(Math.min(24, band - 2), 1);
+  const ticks = pickTicks(data.length);
+  const tickX = (index) => PAD.left + band * (index + 0.5);
 
   return (
     <div className="relative">
@@ -269,6 +322,7 @@ export function TimeColumnChart({ data, color, formatValue, valueKey = "value", 
         onMouseLeave={() => setHover(null)}
       >
         <Grid max={max} pad={PAD} innerW={innerW} innerH={innerH} format={formatValue} />
+        <XGrid ticks={ticks} xAt={tickX} pad={PAD} innerH={innerH} />
 
         {data.map((day, index) => {
           const height = (day[valueKey] / max) * innerH;
@@ -296,17 +350,12 @@ export function TimeColumnChart({ data, color, formatValue, valueKey = "value", 
           );
         })}
 
-        <text x={PAD.left} y={H - 6} className="fill-ink-soft text-[10px]" textAnchor="start">
-          {shortDate(data[0]?.date)}
-        </text>
-        <text
-          x={PAD.left + innerW}
+        <XTicks
+          ticks={ticks}
+          xAt={tickX}
           y={H - 6}
-          className="fill-ink-soft text-[10px]"
-          textAnchor="end"
-        >
-          {shortDate(data[data.length - 1]?.date)}
-        </text>
+          dates={data.map((d) => d.date)}
+        />
       </svg>
     </div>
   );

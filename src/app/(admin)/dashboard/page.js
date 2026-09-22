@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/lib/format";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboard } from "@/hooks/useDashboard";
+import { inventoryService } from "@/services/inventory.service";
 import { orderStatusMeta, paymentStatusMeta } from "@/services/order.service";
 
 /* ------------------------------------------------------------------ */
@@ -98,6 +100,81 @@ function ListSkeleton({ rows = 5 }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Low stock products                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Names the products behind the "Low stock" counter above, so the admin
+ * knows what to restock without a trip to the Inventory page first. Fetched
+ * separately from the dashboard counters, since those are aggregate-only.
+ */
+function LowStockProducts() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    inventoryService
+      .list({ stockStatus: "low_stock", limit: 5 })
+      .then((result) => {
+        if (active) setItems(result.items);
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Could not load low-stock products.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <ul className="mt-3 space-y-2.5 border-t border-line pt-3">
+        {[0, 1, 2].map((n) => (
+          <li key={n}>
+            <Skeleton className="h-3.5 w-2/3" />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mt-3 border-t border-line pt-3">
+        <Alert>{error}</Alert>
+      </div>
+    );
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
+        Low stock products
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {items.map((item) => (
+          <li key={item.id} className="flex items-center justify-between gap-3 text-sm">
+            <span className="truncate text-ink">{item.name}</span>
+            <span className="shrink-0 font-mono text-xs text-brand-orange">
+              {item.stock} left
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -461,6 +538,8 @@ export default function DashboardPage() {
                   value={formatNumber(stats.users.inactive)}
                 />
               </ul>
+
+              <LowStockProducts />
             </>
           )}
         </Card>

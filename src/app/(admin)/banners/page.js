@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/icons";
 import {
   Alert,
   Badge,
@@ -21,11 +22,15 @@ import {
   Textarea,
 } from "@/components/ui";
 import ImageUpload from "@/components/ImageUpload";
+import { formatDateTime } from "@/lib/format";
+import { exportRowsToExcel, todayStamp } from "@/lib/excel";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { useBanners } from "@/hooks/useBanners";
 import {
   BANNER_SORTS,
   BANNER_TYPES,
   PAGE_SIZES,
+  bannerService,
 } from "@/services/banner.service";
 
 /**
@@ -81,6 +86,8 @@ export default function BannersPage() {
   const [form, setForm] = useState(BLANK);
   const [formError, setFormError] = useState("");
   const [confirming, setConfirming] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   function apply(patch = {}) {
     banners.setParams({ search: query.trim(), ...patch, page: 1 });
@@ -89,6 +96,48 @@ export default function BannersPage() {
   function resetFilters() {
     setQuery("");
     banners.setParams(INITIAL_PARAMS);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      const rows = await fetchAllPages(bannerService.list, banners.params);
+      await exportRowsToExcel({
+        fileName: `banners-${todayStamp()}.xlsx`,
+        sheetName: "Banners",
+        columns: [
+          { header: "Title", key: "title", width: 28 },
+          { header: "Placement", key: "type", width: 12 },
+          { header: "Discount", key: "discount", width: 16 },
+          { header: "Description", key: "description", width: 36 },
+          { header: "Link", key: "link", width: 28 },
+          { header: "Button text", key: "buttonText", width: 16 },
+          { header: "Position", key: "position", width: 10, align: "right" },
+          { header: "Status", key: "status", width: 12 },
+          { header: "Start date", key: "startDate", width: 14 },
+          { header: "End date", key: "endDate", width: 14 },
+          { header: "Created", key: "createdAt", width: 20 },
+        ],
+        rows: rows.map((banner) => ({
+          title: banner.title || "",
+          type: banner.type === "offer" ? "Offer" : "Homepage",
+          discount: banner.discount || "",
+          description: banner.description || "",
+          link: banner.link || "",
+          buttonText: banner.buttonText || "",
+          position: Number(banner.position ?? 0),
+          status: banner.isActive === false ? "Inactive" : "Active",
+          startDate: formatDate(banner.startDate) || "",
+          endDate: formatDate(banner.endDate) || "",
+          createdAt: banner.createdAt ? formatDateTime(banner.createdAt) : "",
+        })),
+      });
+    } catch (err) {
+      setExportError(err.message || "Could not build the Excel file.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   const activeFilters =
@@ -277,8 +326,18 @@ export default function BannersPage() {
       />
 
       <Alert>{banners.error}</Alert>
+      <Alert>{exportError}</Alert>
 
-      <Card title="All banners" description={`${banners.total} total`}>
+      <Card
+        title="All banners"
+        description={`${banners.total} total`}
+        actions={
+          <Button size="sm" variant="secondary" loading={exporting} onClick={handleExport}>
+            <Icon name="download" className="h-4 w-4" />
+            Download Excel
+          </Button>
+        }
+      >
         {/* Filter toolbar */}
         <form
           onSubmit={(event) => {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/icons";
 import {
   Alert,
   Badge,
@@ -17,11 +18,14 @@ import {
   Select,
 } from "@/components/ui";
 import { formatDateTime, formatMoney, formatRelative } from "@/lib/format";
+import { exportRowsToExcel, todayStamp } from "@/lib/excel";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { usePayments } from "@/hooks/usePayments";
 import {
   PAGE_SIZES,
   PAYMENT_SORTS,
   PAYMENT_STATUSES,
+  paymentService,
   paymentStatusMeta,
 } from "@/services/payment.service";
 
@@ -47,6 +51,8 @@ export default function PaymentsPage() {
 
   const [query, setQuery] = useState("");
   const [viewing, setViewing] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   function apply(patch = {}) {
     payments.setParams({ search: query.trim(), ...patch, page: 1 });
@@ -55,6 +61,48 @@ export default function PaymentsPage() {
   function resetFilters() {
     setQuery("");
     payments.setParams(INITIAL_PARAMS);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      const rows = await fetchAllPages(paymentService.list, payments.params);
+      await exportRowsToExcel({
+        fileName: `payments-${todayStamp()}.xlsx`,
+        sheetName: "Payments",
+        columns: [
+          { header: "Razorpay order ID", key: "razorpayOrderId", width: 26 },
+          { header: "Razorpay payment ID", key: "razorpayPaymentId", width: 26 },
+          { header: "Customer", key: "customerName", width: 22 },
+          { header: "Email", key: "customerEmail", width: 26 },
+          { header: "Phone", key: "customerPhone", width: 16 },
+          { header: "Amount (₹)", key: "amount", width: 14, numFmt: "#,##0.00", align: "right" },
+          { header: "Currency", key: "currency", width: 10 },
+          { header: "Status", key: "status", width: 14 },
+          { header: "Failure reason", key: "failureReason", width: 28 },
+          { header: "Verified at", key: "verifiedAt", width: 20 },
+          { header: "Created", key: "createdAt", width: 20 },
+        ],
+        rows: rows.map((payment) => ({
+          razorpayOrderId: payment.razorpayOrderId || "",
+          razorpayPaymentId: payment.razorpayPaymentId || "",
+          customerName: payment.customer.name || "",
+          customerEmail: payment.customer.email || "",
+          customerPhone: payment.customer.phone || "",
+          amount: payment.amount,
+          currency: payment.currency || "INR",
+          status: paymentStatusMeta(payment.status).label,
+          failureReason: payment.failureReason || "",
+          verifiedAt: payment.verifiedAt ? formatDateTime(payment.verifiedAt) : "",
+          createdAt: payment.createdAt ? formatDateTime(payment.createdAt) : "",
+        })),
+      });
+    } catch (err) {
+      setExportError(err.message || "Could not build the Excel file.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   const activeFilters =
@@ -148,8 +196,18 @@ export default function PaymentsPage() {
       />
 
       <Alert>{payments.error}</Alert>
+      <Alert>{exportError}</Alert>
 
-      <Card title="All payments" description={`${payments.total} total`}>
+      <Card
+        title="All payments"
+        description={`${payments.total} total`}
+        actions={
+          <Button size="sm" variant="secondary" loading={exporting} onClick={handleExport}>
+            <Icon name="download" className="h-4 w-4" />
+            Download Excel
+          </Button>
+        }
+      >
         {/* Filter toolbar */}
         <form
           onSubmit={(event) => {

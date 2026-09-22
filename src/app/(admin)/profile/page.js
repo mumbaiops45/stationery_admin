@@ -39,8 +39,6 @@ export default function ProfilePage() {
     router.replace("/login");
   }
 
-  const verified = user?.isVerified === true;
-
   return (
     /* One centred column, one card. This page is a single short read, so
        splitting it across sections only added borders between four lines. */
@@ -67,9 +65,6 @@ export default function ProfilePage() {
 
           <p className="mt-4 flex flex-wrap justify-center gap-2">
             <Badge>{user?.role || "admin"}</Badge>
-            <Badge tone={verified ? "success" : "warning"}>
-              {verified ? "Email verified" : "Email unverified"}
-            </Badge>
             <Badge tone={user?.isActive === false ? "danger" : "success"}>
               {user?.isActive === false ? "Disabled" : "Active"}
             </Badge>

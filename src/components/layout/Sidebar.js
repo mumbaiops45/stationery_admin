@@ -55,7 +55,7 @@ export function Sidebar({ open, onClose, user, onLogout }) {
     <>
       <aside
         aria-label="Main navigation"
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-line bg-card transition-[transform,visibility] duration-300 lg:static lg:visible lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-line bg-card transition-[transform,visibility] duration-300 lg:sticky lg:top-0 lg:h-screen lg:visible lg:translate-x-0 ${
           open ? "visible translate-x-0" : "invisible -translate-x-full"
         }`}
       >

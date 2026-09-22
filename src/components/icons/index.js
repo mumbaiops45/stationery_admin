@@ -282,6 +282,15 @@ export function Check(props) {
   );
 }
 
+export function Download(props) {
+  return (
+    <Glyph {...props}>
+      <path d="M12 4v11M8 11.5l4 4 4-4" />
+      <path d="M4.5 16.5V18a1.5 1.5 0 001.5 1.5h12a1.5 1.5 0 001.5-1.5v-1.5" />
+    </Glyph>
+  );
+}
+
 /** Every glyph, keyed by the name the nav config and pages use. */
 export const ICONS = {
   dashboard: Dashboard,
@@ -310,6 +319,7 @@ export const ICONS = {
   chevronLeft: ChevronLeft,
   chevronRight: ChevronRight,
   check: Check,
+  download: Download,
 };
 
 /** Renders a glyph by name; unknown names render nothing rather than crash. */

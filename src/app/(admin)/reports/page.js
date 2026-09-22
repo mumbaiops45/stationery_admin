@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/icons";
 import {
   Alert,
   Badge,
@@ -20,6 +21,7 @@ import {
   formatNumber,
   percent,
 } from "@/lib/format";
+import { exportReportToExcel } from "@/lib/reportExport";
 import { useReports } from "@/hooks/useReports";
 import { PERIODS } from "@/services/report.service";
 
@@ -34,9 +36,24 @@ function compact(value) {
 export default function ReportsPage() {
   const { period, setPeriod, report, error, loading, refreshing } = useReports();
   const [showTable, setShowTable] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   const periodLabel =
     PERIODS.find((entry) => entry.value === period)?.label || period;
+
+  async function handleExport() {
+    if (!report) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      await exportReportToExcel(report, { periodLabel });
+    } catch (err) {
+      setExportError(err.message || "Could not build the Excel file.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -82,6 +99,7 @@ export default function ReportsPage() {
       />
 
       <Alert>{error}</Alert>
+      <Alert>{exportError}</Alert>
 
       {/* One filter row, above everything it scopes. */}
       <div className="flex flex-wrap items-center gap-2">
@@ -103,6 +121,19 @@ export default function ReportsPage() {
             </button>
           ))}
         </span>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="ml-auto"
+          disabled={!report}
+          loading={exporting}
+          onClick={handleExport}
+        >
+          <Icon name="download" className="h-4 w-4" />
+          Download Excel
+        </Button>
       </div>
 
       {/* Holding the previous render at reduced opacity beats a skeleton
