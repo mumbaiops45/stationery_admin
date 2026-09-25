@@ -247,14 +247,6 @@ export default function UserDetailPage() {
                     </button>
                   ),
                 },
-                {
-                  label: "Email verified",
-                  value: (
-                    <Badge tone={user.isVerified ? "success" : "warning"}>
-                      {user.isVerified ? "Verified" : "Unverified"}
-                    </Badge>
-                  ),
-                },
                 { label: "Joined", value: formatDateTime(user.createdAt) },
               ].map((row) => (
                 <div
