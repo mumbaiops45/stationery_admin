@@ -304,9 +304,12 @@ export function Modal({
   // Called from the Escape handler below, always the latest `onClose` —
   // read via a ref rather than a dependency, so a caller passing a fresh
   // `() => ...` closure on every render (every call site does) never
-  // reruns the effect beneath it.
+  // reruns the effect beneath it. Written from an effect, never during
+  // render itself, so it stays safe under concurrent rendering.
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   /**
    * Escape closes, Tab stays inside the dialog, and the page behind is frozen.
@@ -646,8 +649,12 @@ export function Skeleton({ className = "h-4 w-full" }) {
  *
  * `icon` is either a name from @/components/icons ("products") or, for the
  * older call sites, raw <path> children rendered inside a 24×24 svg.
+ *
+ * Interactive either way, never both: `href` navigates (renders a <Link>),
+ * `onClick` acts in place (renders a <button>, e.g. applying a filter on the
+ * page the tile already sits on). Neither prop makes it a static <div>.
  */
-export function StatTile({ label, value, note, icon, tone = "purple", href }) {
+export function StatTile({ label, value, note, icon, tone = "purple", href, onClick }) {
   const tones = {
     purple: "bg-brand-purple/10 text-brand-purple",
     teal: "bg-brand-teal/10 text-brand-teal",
@@ -656,14 +663,16 @@ export function StatTile({ label, value, note, icon, tone = "purple", href }) {
     coral: "bg-brand-coral/10 text-brand-coral",
   };
 
-  // A tile that links must navigate client-side, so it renders as <Link>.
-  const Wrapper = href ? Link : "div";
+  const interactive = Boolean(href || onClick);
+  const Wrapper = href ? Link : onClick ? "button" : "div";
 
   return (
     <Wrapper
       href={href}
-      className={`block rounded-2xl border border-line bg-card p-5 shadow-[0_1px_2px_rgba(43,35,80,0.04)] transition-all duration-200 ${
-        href ? "hover:-translate-y-0.5 hover:border-brand-purple/40 hover:shadow-md" : ""
+      type={onClick && !href ? "button" : undefined}
+      onClick={onClick}
+      className={`block w-full rounded-2xl border border-line bg-card p-5 text-left shadow-[0_1px_2px_rgba(43,35,80,0.04)] transition-all duration-200 ${
+        interactive ? "hover:-translate-y-0.5 hover:border-brand-purple/40 hover:shadow-md" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-3">

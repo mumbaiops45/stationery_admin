@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import {
@@ -46,6 +46,15 @@ const INITIAL_PARAMS = {
   sort: "newest",
 };
 
+/**
+ * "In progress" on the dashboard/orders tiles means these four statuses
+ * together. The admin API's `orderStatus` filter only ever matches one exact
+ * value, so there is no single backend query for this group — "open" is a
+ * frontend-only sentinel, caught below and resolved by fetching every
+ * matching order (ignoring orderStatus) and filtering to this set client-side.
+ */
+const OPEN_ORDER_STATUSES = ["confirmed", "processing", "shipped", "out_for_delivery"];
+
 /** Initials for the customer avatar, e.g. "Asha Rao" → "AR". */
 function initials(name) {
   return String(name || "?")
@@ -67,6 +76,47 @@ export default function OrdersPage() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
+  // The four-statuses-at-once "In progress" view — see OPEN_ORDER_STATUSES.
+  // `loadedFor` records which query the held rows answer, so `loadingOpen`
+  // is derived rather than set imperatively — the same shape useResource and
+  // useReports already use, so a stale fetch never has to be raced by hand.
+  const isOpenView = orders.params.orderStatus === "open";
+  const openQueryKey = [orders.params.search, orders.params.paymentStatus, orders.params.sort].join(
+    "|",
+  );
+  const [openState, setOpenState] = useState({ loadedFor: null, items: [] });
+  const tableRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpenView) return undefined;
+
+    let active = true;
+
+    fetchAllPages(orderService.list, {
+      search: orders.params.search,
+      paymentStatus: orders.params.paymentStatus,
+      sort: orders.params.sort,
+      orderStatus: "all",
+    }).then((rows) => {
+      if (!active) return;
+      setOpenState({
+        loadedFor: openQueryKey,
+        items: rows.filter((row) => OPEN_ORDER_STATUSES.includes(row.orderStatus)),
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpenView, openQueryKey, orders.params.search, orders.params.paymentStatus, orders.params.sort]);
+
+  const openOrders = openState.loadedFor === openQueryKey ? openState.items : [];
+  const loadingOpen = isOpenView && openState.loadedFor !== openQueryKey;
+
+  function scrollToTable() {
+    tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function retryShiprocket() {
     if (!viewing) return;
     const { ok, result } = await retry.run(() => orderService.retryShiprocket(viewing.id));
@@ -86,6 +136,21 @@ export default function OrdersPage() {
   function resetFilters() {
     setQuery("");
     orders.setParams(INITIAL_PARAMS);
+  }
+
+  function showAllOrders() {
+    resetFilters();
+    scrollToTable();
+  }
+
+  function showInProgressOrders() {
+    apply({ orderStatus: "open" });
+    scrollToTable();
+  }
+
+  function showCancelledOrders() {
+    apply({ orderStatus: "cancelled" });
+    scrollToTable();
   }
 
   async function handleExport() {
@@ -260,6 +325,7 @@ export default function OrdersPage() {
               note={`${formatNumber(stats.orders.delivered)} delivered`}
               icon="orders"
               tone="purple"
+              onClick={showAllOrders}
             />
             <StatTile
               label="In progress"
@@ -267,6 +333,7 @@ export default function OrdersPage() {
               note="Confirmed through out for delivery"
               icon="inventory"
               tone="blue"
+              onClick={showInProgressOrders}
             />
             <StatTile
               label="Cancelled"
@@ -274,6 +341,7 @@ export default function OrdersPage() {
               note={`${derived.orders.cancelledRate}% of all orders`}
               icon="warning"
               tone="coral"
+              onClick={showCancelledOrders}
             />
             <StatTile
               label="Revenue"
@@ -287,137 +355,153 @@ export default function OrdersPage() {
         ) : null}
       </div>
 
-      <Card
-        title="All orders"
-        description={`${orders.total} total`}
-        actions={
-          <Button size="sm" variant="secondary" loading={exporting} onClick={handleExport}>
-            <Icon name="download" className="h-4 w-4" />
-            Download Excel
-          </Button>
-        }
-      >
-        {/* Filter toolbar */}
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            apply();
-          }}
-          className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5"
-        >
-          <SearchInput
-            size="sm"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search order number"
-            className="min-w-[160px] flex-1"
-          />
-
-          {/* Widths live on the wrapper: the controls themselves are w-full. */}
-          <div className="w-40 shrink-0">
-            <Select
-              size="sm"
-              value={orders.params.orderStatus || "all"}
-              onChange={(event) => apply({ orderStatus: event.target.value })}
-            >
-              <option value="all">All statuses</option>
-              {ORDER_STATUSES.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="w-36 shrink-0">
-            <Select
-              size="sm"
-              value={orders.params.paymentStatus || "all"}
-              onChange={(event) => apply({ paymentStatus: event.target.value })}
-            >
-              <option value="all">All payments</option>
-              {PAYMENT_STATUSES.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="w-36 shrink-0">
-            <Select
-              size="sm"
-              value={orders.params.sort || "newest"}
-              onChange={(event) => apply({ sort: event.target.value })}
-            >
-              {ORDER_SORTS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          {activeFilters > 0 ? (
-            <Button type="button" size="sm" variant="ghost" onClick={resetFilters}>
-              Clear
+      <div ref={tableRef}>
+        <Card
+          title="All orders"
+          description={isOpenView ? `${openOrders.length} in progress` : `${orders.total} total`}
+          actions={
+            <Button size="sm" variant="secondary" loading={exporting} onClick={handleExport}>
+              <Icon name="download" className="h-4 w-4" />
+              Download Excel
             </Button>
-          ) : null}
+          }
+        >
+          {/* Filter toolbar */}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              apply();
+            }}
+            className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5"
+          >
+            <SearchInput
+              size="sm"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search order number"
+              className="min-w-[160px] flex-1"
+            />
 
-          <span className="ml-auto flex items-center gap-2 text-xs text-ink-soft">
-            Per page
-            <span className="w-20">
+            {/* Widths live on the wrapper: the controls themselves are w-full. */}
+            <div className="w-40 shrink-0">
               <Select
                 size="sm"
-                value={orders.params.limit || 20}
-                onChange={(event) => apply({ limit: Number(event.target.value) })}
+                value={orders.params.orderStatus || "all"}
+                onChange={(event) => apply({ orderStatus: event.target.value })}
               >
-                {PAGE_SIZES.map((pageSize) => (
-                  <option key={pageSize} value={pageSize}>
-                    {pageSize}
+                <option value="all">All statuses</option>
+                <option value="open">In progress</option>
+                {ORDER_STATUSES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </Select>
-            </span>
-          </span>
-        </form>
+            </div>
 
-        <DataTable
-          columns={columns}
-          rows={orders.items}
-          rowKey={(row) => row.id}
-          loading={orders.loading}
-          empty={
-            <EmptyState
-              title="No orders found"
-              description={
-                activeFilters > 0
-                  ? "No order matches these filters. Note that search matches the order number only."
-                  : "Orders placed through the storefront appear here."
-              }
-              action={
-                activeFilters > 0 ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="mt-3"
-                    variant="secondary"
-                    onClick={resetFilters}
-                  >
-                    Clear filters
-                  </Button>
-                ) : null
-              }
+            <div className="w-36 shrink-0">
+              <Select
+                size="sm"
+                value={orders.params.paymentStatus || "all"}
+                onChange={(event) => apply({ paymentStatus: event.target.value })}
+              >
+                <option value="all">All payments</option>
+                {PAYMENT_STATUSES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="w-36 shrink-0">
+              <Select
+                size="sm"
+                value={orders.params.sort || "newest"}
+                onChange={(event) => apply({ sort: event.target.value })}
+              >
+                {ORDER_SORTS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            {activeFilters > 0 ? (
+              <Button type="button" size="sm" variant="ghost" onClick={resetFilters}>
+                Clear
+              </Button>
+            ) : null}
+
+            <span className="ml-auto flex items-center gap-2 text-xs text-ink-soft">
+              Per page
+              <span className="w-20">
+                <Select
+                  size="sm"
+                  value={orders.params.limit || 20}
+                  onChange={(event) => apply({ limit: Number(event.target.value) })}
+                >
+                  {PAGE_SIZES.map((pageSize) => (
+                    <option key={pageSize} value={pageSize}>
+                      {pageSize}
+                    </option>
+                  ))}
+                </Select>
+              </span>
+            </span>
+          </form>
+
+          {isOpenView ? (
+            <div className="flex items-center justify-between gap-2 border-b border-line bg-canvas/60 px-4 py-2 text-xs text-ink-soft">
+              <span>Orders confirmed through out for delivery — not yet delivered or cancelled.</span>
+              <Button type="button" size="sm" variant="ghost" onClick={showAllOrders}>
+                Back to all orders
+              </Button>
+            </div>
+          ) : null}
+
+          <DataTable
+            columns={columns}
+            rows={isOpenView ? openOrders : orders.items}
+            rowKey={(row) => row.id}
+            loading={isOpenView ? loadingOpen : orders.loading}
+            empty={
+              <EmptyState
+                title="No orders found"
+                description={
+                  isOpenView
+                    ? "Nothing is currently in progress."
+                    : activeFilters > 0
+                      ? "No order matches these filters. Note that search matches the order number only."
+                      : "Orders placed through the storefront appear here."
+                }
+                action={
+                  activeFilters > 0 && !isOpenView ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-3"
+                      variant="secondary"
+                      onClick={resetFilters}
+                    >
+                      Clear filters
+                    </Button>
+                  ) : null
+                }
+              />
+            }
+          />
+          {!isOpenView ? (
+            <Pagination
+              page={orders.page}
+              pages={orders.pages}
+              total={orders.total}
+              onChange={orders.setPage}
             />
-          }
-        />
-        <Pagination
-          page={orders.page}
-          pages={orders.pages}
-          total={orders.total}
-          onChange={orders.setPage}
-        />
-      </Card>
+          ) : null}
+        </Card>
+      </div>
 
       {/* Detail — rendered from the row, since the API has no admin
           GET /orders/:id and the list already returns the whole document. */}
