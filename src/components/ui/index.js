@@ -301,10 +301,22 @@ export function Modal({
 }) {
   const panelRef = useRef(null);
 
+  // Called from the Escape handler below, always the latest `onClose` —
+  // read via a ref rather than a dependency, so a caller passing a fresh
+  // `() => ...` closure on every render (every call site does) never
+  // reruns the effect beneath it.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   /**
    * Escape closes, Tab stays inside the dialog, and the page behind is frozen.
    * Without the scroll lock a touch drag inside the modal chains to the page
    * underneath, which is then left at a new scroll position once it closes.
+   *
+   * This must only run when the dialog actually opens or closes — not on
+   * every render the open dialog happens to cause (typing into a field it
+   * contains, for one) — since re-running it mid-render re-steals focus to
+   * the panel and drops whatever the caret was in.
    */
   useEffect(() => {
     if (!open) return;
@@ -322,7 +334,7 @@ export function Modal({
 
     const onKey = (event) => {
       if (event.key === "Escape") {
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       if (event.key !== "Tab" || !panelRef.current) return;
@@ -352,7 +364,7 @@ export function Modal({
       // keyboard user at the top of the page.
       if (opener instanceof HTMLElement) opener.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

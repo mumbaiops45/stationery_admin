@@ -27,6 +27,7 @@ import { VariantsModal } from "@/components/VariantsModal";
 import { formatDateTime, formatMoney, toNumber } from "@/lib/format";
 import { exportRowsToExcel, todayStamp } from "@/lib/excel";
 import { fetchAllPages } from "@/lib/fetchAllPages";
+import { slugify } from "@/lib/slug";
 import { useCategoryOptions } from "@/hooks/useCategories";
 import { useProducts } from "@/hooks/useProducts";
 import { PAGE_SIZES, PRODUCT_SORTS, productService } from "@/services/product.service";
@@ -93,6 +94,10 @@ export default function ProductsPage() {
   const [managing, setManaging] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  // Once the admin types into Slug directly, it stops following Name — an
+  // edit's existing slug counts as "already touched" too, so opening one
+  // never silently rewrites a live URL just because the name changed.
+  const [slugTouched, setSlugTouched] = useState(false);
 
   function apply(patch = {}) {
     products.setParams({
@@ -167,6 +172,7 @@ export default function ProductsPage() {
   function openCreate() {
     setForm(BLANK);
     setFormError("");
+    setSlugTouched(false);
     setEditing({});
   }
 
@@ -182,7 +188,22 @@ export default function ProductsPage() {
       image: product.image?.url || "",
     });
     setFormError("");
+    setSlugTouched(true);
     setEditing(product);
+  }
+
+  function updateName(event) {
+    const name = event.target.value;
+    setForm((current) => ({
+      ...current,
+      name,
+      slug: slugTouched ? current.slug : slugify(name),
+    }));
+  }
+
+  function updateSlug(event) {
+    setSlugTouched(true);
+    setForm((current) => ({ ...current, slug: event.target.value }));
   }
 
   async function handleSave(event) {
@@ -220,7 +241,7 @@ export default function ProductsPage() {
 
     const payload = {
       name: form.name.trim(),
-      slug: form.slug.trim() || undefined,
+      slug: form.slug.trim() ? slugify(form.slug) : undefined,
       description: form.description.trim(),
       category: form.category,
       price: Number(form.price),
@@ -622,7 +643,7 @@ export default function ProductsPage() {
             <Field label="Name" required className="sm:col-span-2">
               <Input
                 value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                onChange={updateName}
                 placeholder="A5 spiral notebook"
                 autoFocus
               />
@@ -647,12 +668,11 @@ export default function ProductsPage() {
               </Select>
             </Field>
 
-            <Field label="Slug" hint="Derived from the name if left blank">
-              <Input
-                value={form.slug}
-                onChange={(event) => setForm({ ...form, slug: event.target.value })}
-                placeholder="a5-spiral-notebook"
-              />
+            <Field
+              label="Slug"
+              hint={slugTouched ? undefined : "Auto-filled from the name"}
+            >
+              <Input value={form.slug} onChange={updateSlug} placeholder="a5-spiral-notebook" />
             </Field>
 
             <Field label="Description" required className="sm:col-span-2">

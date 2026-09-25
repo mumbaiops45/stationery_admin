@@ -21,14 +21,11 @@ export const PAGE_SIZES = [10, 20, 50, 100];
  * capitals would be stored as-is and never match a lookup. Normalising here
  * keeps both paths identical. updateCategory does normalise, so this is
  * belt-and-braces on that route.
+ *
+ * Re-exported from @/lib/slug so Products' form can share the exact same
+ * derivation without importing it from an unrelated service.
  */
-export function slugify(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+export { slugify } from "@/lib/slug";
 
 export const categoryService = {
   /**

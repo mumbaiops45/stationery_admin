@@ -58,6 +58,10 @@ export default function CategoriesPage() {
   const [confirming, setConfirming] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  // Once the admin types into Slug directly, it stops following Name — an
+  // edit's existing slug counts as "already touched" too, so opening one
+  // never silently rewrites a live URL just because the name changed.
+  const [slugTouched, setSlugTouched] = useState(false);
 
   function apply(patch = {}) {
     categories.setParams({ search: query.trim(), ...patch, page: 1 });
@@ -110,6 +114,7 @@ export default function CategoriesPage() {
   function openCreate() {
     setForm(BLANK);
     setFormError("");
+    setSlugTouched(false);
     setEditing({});
   }
 
@@ -121,7 +126,22 @@ export default function CategoriesPage() {
       image: category.image?.url || "",
     });
     setFormError("");
+    setSlugTouched(true);
     setEditing(category);
+  }
+
+  function updateName(event) {
+    const name = event.target.value;
+    setForm((current) => ({
+      ...current,
+      name,
+      slug: slugTouched ? current.slug : slugify(name),
+    }));
+  }
+
+  function updateSlug(event) {
+    setSlugTouched(true);
+    setForm((current) => ({ ...current, slug: event.target.value }));
   }
 
   async function handleSave(event) {
@@ -399,7 +419,7 @@ export default function CategoriesPage() {
             <Field label="Name" required>
               <Input
                 value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                onChange={updateName}
                 placeholder="Notebooks"
                 autoFocus
               />
@@ -407,13 +427,9 @@ export default function CategoriesPage() {
 
             <Field
               label="Slug"
-              hint={slugPreview ? `/${slugPreview}` : "Derived from the name"}
+              hint={slugTouched ? `/${slugPreview}` : "Auto-filled from the name"}
             >
-              <Input
-                value={form.slug}
-                onChange={(event) => setForm({ ...form, slug: event.target.value })}
-                placeholder="notebooks"
-              />
+              <Input value={form.slug} onChange={updateSlug} placeholder="notebooks" />
             </Field>
 
             <Field label="Description" className="sm:col-span-2">
