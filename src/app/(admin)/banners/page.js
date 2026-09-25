@@ -197,8 +197,11 @@ export default function BannersPage() {
       position: Number(form.position) || 0,
       link: isOffer ? form.link.trim() : "",
       buttonText: isOffer ? form.buttonText.trim() : "",
-      startDate: form.startDate || null,
-      endDate: form.endDate || null,
+      // Homepage banners always show immediately — only offer banners are
+      // scheduled — so belt-and-braces this the same way as link/buttonText
+      // above, in case a stale date lingers from before the type was switched.
+      startDate: isOffer && form.startDate ? form.startDate : null,
+      endDate: isOffer && form.endDate ? form.endDate : null,
     };
 
     const id = editing?._id || editing?.id;
@@ -218,6 +221,18 @@ export default function BannersPage() {
 
   const isEditing = Boolean(editing?._id || editing?.id);
   const isOfferForm = form.type === "offer";
+
+  // Homepage banners always show immediately, so switching away from Offer
+  // clears any schedule already typed in rather than leaving stale dates
+  // sitting behind the now-disabled fields.
+  function updateType(event) {
+    const type = event.target.value;
+    setForm((current) => ({
+      ...current,
+      type,
+      ...(type === "offer" ? null : { startDate: "", endDate: "" }),
+    }));
+  }
 
   /* ---------------------------------------------------------------- */
   /* Table                                                             */
@@ -488,10 +503,7 @@ export default function BannersPage() {
             columns={2}
           >
             <Field label="Type" required>
-              <Select
-                value={form.type}
-                onChange={(event) => setForm({ ...form, type: event.target.value })}
-              >
+              <Select value={form.type} onChange={updateType}>
                 {BANNER_TYPES.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -589,12 +601,17 @@ export default function BannersPage() {
 
           <FormSection
             title="Schedule"
-            description="Leave blank to show the banner immediately with no expiry."
+            description={
+              isOfferForm
+                ? "Leave blank to show the banner immediately with no expiry."
+                : "Homepage banners always show immediately — scheduling is only for offer banners."
+            }
             columns={2}
           >
             <Field label="Start date">
               <Input
                 type="date"
+                disabled={!isOfferForm}
                 value={form.startDate}
                 onChange={(event) =>
                   setForm({ ...form, startDate: event.target.value })
@@ -605,6 +622,7 @@ export default function BannersPage() {
             <Field label="End date">
               <Input
                 type="date"
+                disabled={!isOfferForm}
                 value={form.endDate}
                 onChange={(event) => setForm({ ...form, endDate: event.target.value })}
               />
