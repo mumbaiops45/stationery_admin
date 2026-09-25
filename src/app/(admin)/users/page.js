@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Icon } from "@/components/icons";
 import {
@@ -10,9 +11,7 @@ import {
   Card,
   DataTable,
   EmptyState,
-  Field,
   IconButton,
-  Modal,
   PageHeader,
   Pagination,
   SearchInput,
@@ -28,7 +27,6 @@ import { useDashboard } from "@/hooks/useDashboard";
 import { useUsers } from "@/hooks/useUsers";
 import {
   PAGE_SIZES,
-  ROLES,
   ROLE_FILTERS,
   STATUS_FILTERS,
   USER_SORTS,
@@ -58,19 +56,13 @@ export default function UsersPage() {
   const users = useUsers(INITIAL_PARAMS);
   const { stats, loading: summaryLoading } = useDashboard();
   const { user: me } = useAuth();
+  const router = useRouter();
 
   const [query, setQuery] = useState("");
-  const [viewing, setViewing] = useState(null);
-  const [roleDraft, setRoleDraft] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
   const myId = me?._id || me?.id || null;
-  // Read off nullable state here, not inside saveRole: the React Compiler
-  // hoists a callback's property reads into the render body, where `viewing`
-  // is still null until a row is opened.
-  const viewingId = viewing?.id ?? null;
-  const isMe = viewing ? String(viewing.id) === String(myId) : false;
 
   function apply(patch = {}) {
     users.setParams({ search: query.trim(), ...patch, page: 1 });
@@ -111,21 +103,6 @@ export default function UsersPage() {
     } finally {
       setExporting(false);
     }
-  }
-
-  function openUser(row) {
-    setRoleDraft(row.role);
-    users.clearError();
-    setViewing(row);
-  }
-
-  async function saveRole() {
-    if (!viewingId) return;
-    const outcome = await users.setRole(viewingId, roleDraft);
-    // `viewing` is a snapshot of the row, so patch it here rather than waiting
-    // for the refetch — and the modal keeps working even when the new role
-    // filters the user out of the list that comes back.
-    if (outcome.ok) setViewing({ ...viewing, role: roleDraft });
   }
 
   const activeFilters =
@@ -190,7 +167,7 @@ export default function UsersPage() {
           icon="eye"
           tone="brand"
           label={`View ${row.name}`}
-          onClick={() => openUser(row)}
+          onClick={() => router.push(`/users/${row.id}`)}
         />
       ),
     },
@@ -379,112 +356,6 @@ export default function UsersPage() {
           onChange={users.setPage}
         />
       </Card>
-
-      {/* Detail — rendered from the row, since the API has no admin
-          GET /users/:id and the list already returns the whole document. */}
-      <Modal
-        open={viewing !== null}
-        onClose={() => setViewing(null)}
-        title={viewing ? viewing.name : ""}
-        description={viewing ? viewing.email : ""}
-        footer={
-          <Button variant="secondary" onClick={() => setViewing(null)}>
-            Close
-          </Button>
-        }
-      >
-        {viewing ? (
-          <div className="space-y-5">
-            <dl className="divide-y divide-line rounded-xl border border-line">
-              {[
-                { label: "Name", value: viewing.name },
-                { label: "Email", value: viewing.email || "—" },
-                { label: "Phone", value: viewing.phone || "Not provided" },
-                {
-                  label: "Role",
-                  value: <Badge tone={roleMeta(viewing.role).tone}>{roleMeta(viewing.role).label}</Badge>,
-                },
-                {
-                  label: "Account",
-                  value: (
-                    <Badge tone={viewing.isActive ? "success" : "danger"}>
-                      {viewing.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  ),
-                },
-                {
-                  label: "Email verified",
-                  value: (
-                    <Badge tone={viewing.isVerified ? "success" : "warning"}>
-                      {viewing.isVerified ? "Verified" : "Unverified"}
-                    </Badge>
-                  ),
-                },
-                { label: "Joined", value: formatDateTime(viewing.createdAt) },
-              ].map((row) => (
-                <div
-                  key={row.label}
-                  className="flex items-center justify-between gap-4 px-3.5 py-2.5 text-sm"
-                >
-                  <dt className="text-ink-soft">{row.label}</dt>
-                  <dd className="min-w-0 truncate text-right font-medium text-ink">
-                    {row.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-
-            {/* Role is the only field the API lets an admin write. */}
-            <section className="rounded-xl border border-line bg-canvas/60 px-4 py-3.5">
-              <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
-                Change role
-              </h3>
-
-              <Alert>{users.saveError}</Alert>
-
-              {isMe ? (
-                <p className="mt-2 text-sm text-ink-soft">
-                  This is your own account. The API refuses to let an admin
-                  change their own role, so ask another admin to do it.
-                </p>
-              ) : (
-                <>
-                  <div className="mt-3 flex flex-wrap items-end gap-2">
-                    <Field label="Role" className="min-w-[160px] flex-1">
-                      <Select
-                        size="sm"
-                        value={roleDraft}
-                        onChange={(event) => setRoleDraft(event.target.value)}
-                      >
-                        {ROLES.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Button
-                      size="sm"
-                      disabled={roleDraft === viewing.role}
-                      loading={users.saving}
-                      onClick={saveRole}
-                    >
-                      Save role
-                    </Button>
-                  </div>
-
-                  {roleDraft === "admin" && viewing.role !== "admin" ? (
-                    <p className="mt-2.5 rounded-lg border border-brand-orange/30 bg-brand-orange/10 px-3 py-2 text-xs text-brand-orange">
-                      An admin gets full access to this console — the catalogue,
-                      every order and every account.
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </section>
-          </div>
-        ) : null}
-      </Modal>
     </div>
   );
 }

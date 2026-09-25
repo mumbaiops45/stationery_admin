@@ -174,7 +174,12 @@ export const orderService = {
    */
   retryShiprocket: (id) => api.post(`${endpoint.path()}/${id}/retry-shiprocket`),
 
-  /** GET <mount>/ — search (order number), orderStatus, paymentStatus, sort. */
+  /**
+   * GET <mount>/ — search (order number), orderStatus, paymentStatus, sort.
+   * `userId` narrows to one customer's order history — used by the Users
+   * page's detail view rather than a dedicated history endpoint, since this
+   * one already returns everything that needs (items, totals, dates).
+   */
   list: async (params = {}, options) => {
     const payload = assertAdminEnvelope(
       await endpoint.get({
@@ -183,6 +188,7 @@ export const orderService = {
           search: params.search,
           orderStatus: params.orderStatus,
           paymentStatus: params.paymentStatus,
+          userId: params.userId,
           sort: params.sort,
           page: params.page,
           limit: params.limit,

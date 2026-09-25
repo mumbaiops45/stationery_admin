@@ -126,4 +126,29 @@ export const userService = {
    */
   setRole: (userId, role) =>
     api.patch(`${endpoint.path()}/${userId}/role`, { role }),
+
+  /**
+   * PATCH <mount>/:userId/status — { isActive }. Refused on the caller's own
+   * account, same reasoning as setRole above.
+   */
+  setStatus: (userId, isActive) =>
+    api.patch(`${endpoint.path()}/${userId}/status`, { isActive }),
+
+  /**
+   * GET <mount>/:userId — one user plus an order summary the controller
+   * computes server-side (orderCount, totalSpent) so it stays correct beyond
+   * whatever page of orders the detail view happens to have loaded.
+   */
+  get: async (userId, options) => {
+    const payload = await api.get(`${endpoint.path()}/${userId}`, options);
+    const data = payload?.data || {};
+
+    return {
+      user: normalizeUser(data.user || {}),
+      stats: {
+        orderCount: toNumber(data.stats?.orderCount),
+        totalSpent: toNumber(data.stats?.totalSpent),
+      },
+    };
+  },
 };
